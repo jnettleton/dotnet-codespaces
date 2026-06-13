@@ -1,6 +1,7 @@
 ﻿@page "/"
 @using FrontEnd.Data
 @inject WeatherForecastClient ForecastClient
+@implements IDisposable
 
 <PageTitle>Weather forecast</PageTitle>
 
@@ -8,7 +9,122 @@
 
 <p>This component demonstrates fetching data from a service.</p>
 
-@if (forecasts == null)
+@if (error != null)
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Error:</strong> @error
+    </div>
+}
+else if (result == null)
+{
+    <div class="d-flex justify-content-center my-4">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Temp. (C)</th>
+                <th>Temp. (F)</th>
+                <th>Summary</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var forecast in result.Items)
+            {
+                <tr>
+                    <td>@forecast.Date.ToShortDateString()</td>
+                    <td>@forecast.TemperatureC</td>
+                    <td>@forecast.TemperatureF</td>
+                    <td>@forecast.Summary</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <nav aria-label="Weather forecast pages">
+        <ul class="pagination">
+            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="PreviousPage">Previous</button>
+            </li>
+            @for (int p = 1; p <= TotalPages; p++)
+            {
+                var pageNum = p;
+                <li class="page-item @(pageNum == currentPage ? "active" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                </li>
+            }
+            <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="NextPage">Next</button>
+            </li>
+        </ul>
+    </nav>
+    <p class="text-muted">Showing page @currentPage of @TotalPages (@result.Total total records)</p>
+}
+
+@code {
+    private PagedResult<WeatherForecast>? result;
+    private string? error;
+    private int currentPage = 1;
+    private const int PageSize = 10;
+    private CancellationTokenSource _cts = new();
+
+    private int TotalPages => result is null ? 1 : (int)Math.Ceiling((double)result.Total / PageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        error = null;
+        result = null;
+        try
+        {
+            currentPage = page;
+            result = await ForecastClient.GetForecastAsync(page, PageSize, _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Component was disposed mid-request; swallow silently
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private Task PreviousPage() => currentPage > 1 ? LoadPage(currentPage - 1) : Task.CompletedTask;
+    private Task NextPage() => currentPage < TotalPages ? LoadPage(currentPage + 1) : Task.CompletedTask;
+    private Task GoToPage(int page) => LoadPage(page);
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}
+
+
+<PageTitle>Weather forecast</PageTitle>
+
+<h1>Weather forecast</h1>
+
+<p>This component demonstrates fetching data from a service.</p>
+
+@if (error != null)
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Error:</strong> @error
+    </div>
+}
+else if (result == null)
 {
     <p><em>Loading...</em></p>
 }
@@ -24,7 +140,7 @@ else
             </tr>
         </thead>
         <tbody>
-            @foreach (var forecast in forecasts)
+            @foreach (var forecast in result.Items)
             {
                 <tr>
                     <td>@forecast.Date.ToShortDateString()</td>
@@ -35,13 +151,57 @@ else
             }
         </tbody>
     </table>
+
+    <nav aria-label="Weather forecast pages">
+        <ul class="pagination">
+            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                <button class="page-link" @onclick="PreviousPage">Previous</button>
+            </li>
+            @for (int p = 1; p <= TotalPages; p++)
+            {
+                var pageNum = p;
+                <li class="page-item @(pageNum == currentPage ? "active" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                </li>
+            }
+            <li class="page-item @(currentPage == TotalPages ? "disabled" : "")">
+                <button class="page-link" @onclick="NextPage">Next</button>
+            </li>
+        </ul>
+    </nav>
+    <p class="text-muted">Showing page @currentPage of @TotalPages (@result.Total total records)</p>
 }
 
 @code {
-    private WeatherForecast[]? forecasts;
+    private PagedResult<WeatherForecast>? result;
+    private string? error;
+    private int currentPage = 1;
+    private const int PageSize = 10;
+
+    private int TotalPages => result is null ? 1 : (int)Math.Ceiling((double)result.Total / PageSize);
 
     protected override async Task OnInitializedAsync()
     {
-        forecasts = await ForecastClient.GetForecastAsync(DateTime.Now);
+        await LoadPage(1);
     }
+
+    private async Task LoadPage(int page)
+    {
+        error = null;
+        result = null;
+        try
+        {
+            currentPage = page;
+            result = await ForecastClient.GetForecastAsync(page, PageSize);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private Task PreviousPage() => currentPage > 1 ? LoadPage(currentPage - 1) : Task.CompletedTask;
+    private Task NextPage() => currentPage < TotalPages ? LoadPage(currentPage + 1) : Task.CompletedTask;
+    private Task GoToPage(int page) => LoadPage(page);
+}
 }

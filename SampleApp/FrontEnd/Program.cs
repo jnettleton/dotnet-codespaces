@@ -11,7 +11,8 @@ builder.Services.AddHttpClient<WeatherForecastClient>(c =>
         ?? throw new InvalidOperationException("WEATHER_URL is not set");
 
     c.BaseAddress = new(url);
-});
+})
+.AddStandardResilienceHandler();
 
 var app = builder.Build();
 
